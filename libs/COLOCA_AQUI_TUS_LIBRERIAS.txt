@@ -1,0 +1,1 @@
+Coloca aqui tesseract.min.js y xlsx.full.min.js si quieres funcionar 100% offline.

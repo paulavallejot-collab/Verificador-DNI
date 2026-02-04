@@ -1,0 +1,9 @@
+{
+  "name": "Verificador de Identidad",
+  "short_name": "VerifierID",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#2563eb",
+  "icons": []
+}

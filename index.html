@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Verificador de Identidad</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="styles.css" />
+  <meta name="theme-color" content="#2563eb" />
+  <script src="libs/tesseract.min.js"></script>
+  <script>if (!window.Tesseract) { document.write('<script src="https://unpkg.com/tesseract.js@5.1.0/dist/tesseract.min.js"><\/script>'); }</script>
+  <script src="libs/xlsx.full.min.js"></script>
+  <script>if (!window.XLSX) { document.write('<script src="https://cdn.jsdelivr.net/npm/xlsx@0.20.2/dist/xlsx.full.min.js"><\/script>'); }</script>
+</head>
+<body>
+  <header>
+    <h1>Verificador de Identidad</h1>
+    <p>Escanea DNI/NIE y compara con tu Excel. Todo ocurre en tu dispositivo.</p>
+  </header>
+
+  <section class="panel">
+    <h2>1) Cargar base (Excel)</h2>
+    <input id="excelInput" type="file" accept=".xlsx,.xls,.csv" />
+    <p id="baseStatus">Base no cargada.</p>
+  </section>
+
+  <section class="panel">
+    <h2>2) Cámara / Imagen</h2>
+
+    <div class="camera">
+      <video id="video" playsinline autoplay muted></video>
+      <canvas id="canvas" hidden></canvas>
+      <div class="overlay" id="overlay"></div>
+    </div>
+
+    <div class="controls">
+      <button id="startCamBtn">Iniciar cámara</button>
+      <button id="captureBtn" disabled>Escanear</button>
+      <label class="toggle">
+        <input type="checkbox" id="focusDocToggle" />
+        <span>Foco en número (recorte)</span>
+      </label>
+      <span>o</span>
+      <input id="imageInput" type="file" accept="image/*" />
+    </div>
+
+    <details>
+      <summary>Entrada manual (alternativa)</summary>
+      <div class="manual">
+        <label>Número de documento</label>
+        <input id="manualDoc" placeholder="12345678Z o X1234567L" />
+        <label>Nombre completo</label>
+        <input id="manualName" placeholder="NOMBRE APELLIDO1 APELLIDO2" />
+        <button id="manualCheckBtn">Comprobar</button>
+      </div>
+    </details>
+  </section>
+
+  <section class="panel result">
+    <h2>3) Resultado</h2>
+    <div id="indicator" class="indicator">—</div>
+    <div id="matchInfo" class="match-info"></div>
+  </section>
+
+  <footer>
+    <small>Este sistema no verifica autenticidad del documento; únicamente compara texto OCR con la base cargada.</small>
+  </footer>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(()=>{});
+    }
+  </script>
+  <script src="app.js"></script>
+</body>
+</html>
