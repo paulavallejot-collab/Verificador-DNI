@@ -1,18 +1,27 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <script src="libs/tesseract.min.js"></script>
-<script>if (!window.Tesseract) { document.write
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Verificador de Identidad</title>
+
   <link rel="manifest" href="manifest.json" />
   <link rel="stylesheet" href="styles.css" />
   <meta name="theme-color" content="#2563eb" />
+
+  <!-- Librerías: primero intentar local (libs/), si no existen usar CDN -->
   <script src="libs/tesseract.min.js"></script>
-  <script>if (!window.Tesseract) { document.write('<script src="https://unpkg.com/tesseract.js@5.1.0/dist/tesseract.min.js"><\/script>'); }</script>
+  <script>
+    if (!window.Tesseract) {
+      document.write('<script src="https://unpkg.com/tesseract.js@5.1.0/dist/tesseract.min.js"><\\/script>');
+    }
+  </script>
   <script src="libs/xlsx.full.min.js"></script>
-  <script>if (!window.XLSX) { document.write('<script src="https://cdn.jsdelivr.net/npm/xlsx@0.20.2/dist/xlsx.full.min.js"><\/script>'); }</script>
+  <script>
+    if (!window.XLSX) {
+      document.write('<script src="https://cdn.jsdelivr.net/npm/xlsx@0.20.2/dist/xlsx.full.min.js"><\\/script>');
+    }
+  </script>
 </head>
 <body>
   <header>
