@@ -1,8 +1,8 @@
 // ===== Configuración =====
-const MAX_ABS_DISTANCE = 2;       // distancia Levenshtein mínima
-const MAX_REL_DISTANCE = 0.10;    // 10% de la longitud del nombre
+const MAX_ABS_DISTANCE = 2;
+const MAX_REL_DISTANCE = 0.10;
 
-// ===== Utilidades de texto =====
+// ===== Utilidades =====
 const normalize = (s) =>
   (s || "")
     .toUpperCase()
@@ -11,7 +11,6 @@ const normalize = (s) =>
     .replace(/\s+/g, " ")
     .trim();
 
-// DNI/NIF: 8 dígitos + letra. NIE: X/Y/Z + 7 dígitos + letra.
 const nifLetter = (num) => "TRWAGMYFPDXBNJZSQVHLCKE"[num % 23];
 
 function canonDoc(raw) {
@@ -32,11 +31,11 @@ function canonDoc(raw) {
 }
 
 function extractDocFromText(text) {
-  const T = text.toUpperCase();
-  const candidates = T.match(/(?:[XYZ]\d{7}[A-Z]|\d{8}[A-Z])/g) || [];
-  for (const c of candidates) {
-    const canon = canonDoc(c);
-    if (canon) return canon;
+  const T = text?.toUpperCase?.() || "";
+  const list = T.match(/\b(?:[XYZ]\d{7}[A-Z]|\d{8}[A-Z])\b/g) || [];
+  for (const c of list) {
+    const ok = canonDoc(c);
+    if (ok) return ok;
   }
   return null;
 }
@@ -48,12 +47,10 @@ function levenshtein(a, b) {
   const dp = new Array(m + 1);
   for (let j = 0; j <= m; j++) dp[j] = j;
   for (let i = 1; i <= n; i++) {
-    let prev = dp[0];
-    dp[0] = i;
+    let prev = dp[0]; dp[0] = i;
     for (let j = 1; j <= m; j++) {
       const temp = dp[j];
-      if (a[i - 1] === b[j - 1]) dp[j] = prev;
-      else dp[j] = Math.min(prev + 1, dp[j] + 1, dp[j - 1] + 1);
+      dp[j] = (a[i - 1] === b[j - 1]) ? prev : Math.min(prev + 1, dp[j] + 1, dp[j - 1] + 1);
       prev = temp;
     }
   }
@@ -68,29 +65,45 @@ function similarEnough(a, b) {
   return { ok: dist <= threshold, dist, threshold };
 }
 
+// ===== MRZ (opcional para nombre) =====
 function parseMRZ(text) {
-  const lines = text.split(/?
-/).map(l => l.trim());
+  const lines = (text || "").split(/\r?\n/).map(l => l.trim());
   const mrzLines = lines.filter(l => /^[A-Z0-9<]{25,}$/.test(l));
   if (mrzLines.length < 2) return null;
   const L1 = mrzLines[mrzLines.length - 2];
   let nameRaw = null;
   const nameMatch = L1.match(/([A-Z<]{10,})/);
-  if (nameMatch) {
-    nameRaw = nameMatch[1].replace(/<+/g, " ").trim();
-  }
+  if (nameMatch) nameRaw = nameMatch[1].replace(/<+/g, " ").trim();
   return { name: nameRaw };
 }
 
+// ===== Estado =====
 let baseByDoc = new Map();
 
-function makeNamesFromRow(r) {
-  const normalizeName = (o) => normalize([o.nombre, o.apellido1, o.apellido2].filter(Boolean).join(" "));
-  return { full: normalizeName(r), short: normalize([r.nombre, r.apellido1].filter(Boolean).join(" ")) };
+// Mapeo flexible de cabeceras
+function getCell(obj, keys) {
+  const all = Object.keys(obj);
+  for (const k of all) {
+    const nk = normalize(k).replace(/\s+/g, "");
+    for (const want of keys) {
+      const nw = normalize(want).replace(/\s+/g, "");
+      if (nk === nw) return obj[k];
+    }
+  }
+  return "";
 }
 
-function loadExcel(file) {
+// Construye nombres (full / short)
+function makeNamesFromRow(r) {
+  const full = normalize([r.nombre, r.apellido1, r.apellido2].filter(Boolean).join(" "));
+  const short = normalize([r.nombre, r.apellido1].filter(Boolean).join(" "));
+  return { full, short };
+}
+
+// Carga Excel con tolerancia de cabeceras
+async function loadExcel(file) {
   return new Promise((resolve, reject) => {
+    if (!window.XLSX) return reject(new Error("Librería XLSX no cargada."));
     const reader = new FileReader();
     reader.onerror = () => reject(reader.error);
     reader.onload = () => {
@@ -99,23 +112,40 @@ function loadExcel(file) {
         const wb = XLSX.read(data, { type: "array" });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
+
         baseByDoc.clear();
+        let rawCount = 0, okCount = 0;
+
         for (const r of rows) {
-          const doc = canonDoc(r.documento);
-          if (!doc) continue;
-          const { full, short } = makeNamesFromRow(r);
-          const item = { doc, full, short, originalRow: r };
-          const arr = baseByDoc.get(doc) || [];
+          rawCount++;
+          // Intenta leer cabeceras con nombres flexibles
+          const documento = getCell(r, ["documento", "doc", "dni", "nif", "nie"]);
+          const nombre    = getCell(r, ["nombre", "name"]);
+          const apellido1 = getCell(r, ["apellido1", "apellido 1", "ap1", "primer apellido"]);
+          const apellido2 = getCell(r, ["apellido2", "apellido 2", "ap2", "segundo apellido"]);
+
+          const docCanon = canonDoc(documento);
+          const tmp = { nombre, apellido1, apellido2 };
+          const { full, short } = makeNamesFromRow(tmp);
+
+          if (!docCanon) continue;
+          if (!full && !short) continue;
+
+          const item = { doc: docCanon, full, short, originalRow: { documento, nombre, apellido1, apellido2 } };
+          const arr = baseByDoc.get(docCanon) || [];
           arr.push(item);
-          baseByDoc.set(doc, arr);
+          baseByDoc.set(docCanon, arr);
+          okCount++;
         }
-        resolve({ count: rows.length });
+
+        resolve({ rawCount, okCount });
       } catch (e) { reject(e); }
     };
     reader.readAsArrayBuffer(file);
   });
 }
 
+// ===== DOM =====
 const video = document.getElementById("video");
 const canvas = document.getElementById("canvas");
 const startCamBtn = document.getElementById("startCamBtn");
@@ -145,10 +175,11 @@ function compareAgainstBase(docCanon, nameCanon) {
     const s2 = similarEnough(nameCanon, r.short);
     if (s1.ok || s2.ok) return setResult(true, "Documento coincide y el nombre es similar (tolerancia aplicada).");
   }
-  const candidates = list.map(r => r.originalRow.nombre+" "+r.originalRow.apellido1+" "+(r.originalRow.apellido2||"")).join(" · ");
+  const candidates = list.map(r => [r.originalRow.nombre, r.originalRow.apellido1, r.originalRow.apellido2].filter(Boolean).join(" ")).join(" · ");
   return setResult(false, `Documento encontrado, pero el nombre no coincide. En base: ${candidates}`);
 }
 
+// ===== Cámara & OCR =====
 async function grabVideoFrame() {
   const track = video.srcObject?.getVideoTracks?.()[0];
   if (!track) throw new Error("Cámara no iniciada.");
@@ -186,16 +217,18 @@ async function ocrImage(imageBitmap) {
   const ctx = canvas.getContext("2d");
   ctx.drawImage(imageBitmap, 0, 0, w, h);
   const fullBlob = await new Promise(res => canvas.toBlob(res, "image/jpeg", 0.9));
+
   const useROI = !!focusDocToggle?.checked;
   const roi = { x: 0.15, y: 0.60, w: 0.70, h: 0.30 };
   const roiData = useROI ? await cropBitmapToROI(imageBitmap, roi) : null;
+
+  if (!window.Tesseract) throw new Error("Librería Tesseract no cargada.");
 
   const worker = await Tesseract.createWorker();
   try {
     await worker.setParameters({ tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789< " });
     const { data: mrzData } = await worker.recognize(fullBlob, "eng");
-    const mrz = (mrzData.text||"");
-    let nameLine = (parseMRZ(mrz)||{}).name || "";
+    const mrz = parseMRZ(mrzData.text || "");
 
     const targetBlob = roiData?.blob || fullBlob;
     await worker.setParameters({ tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÑÜ 0123456789<" });
@@ -203,11 +236,11 @@ async function ocrImage(imageBitmap) {
     const text = data.text || "";
     const docCanon = extractDocFromText(text);
 
+    let nameLine = mrz?.name || "";
     if (!nameLine) {
       const { data: nameData } = await worker.recognize(fullBlob, "eng");
       const t2 = nameData.text || "";
-      nameLine = t2.split(/?
-/).map(l=>l.trim()).filter(l=>l && /^[A-ZÁÉÍÓÚÑÜ\s]+$/.test(l)).sort((a,b)=>b.length-a.length)[0] || "";
+      nameLine = t2.split(/\r?\n/).map(l=>l.trim()).filter(l=>l && /^[A-ZÁÉÍÓÚÑÜ\s]+$/.test(l)).sort((a,b)=>b.length-a.length)[0] || "";
     }
     const nameCanon = normalize(nameLine);
 
@@ -219,11 +252,15 @@ async function ocrImage(imageBitmap) {
   }
 }
 
+// ===== Eventos =====
 startCamBtn.addEventListener("click", async () => {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
-    video.srcObject = stream; captureBtn.disabled = false;
-  } catch (e) { alert("No se pudo acceder a la cámara. Puedes subir una imagen."); }
+    video.srcObject = stream;
+    captureBtn.disabled = false;
+  } catch (e) {
+    alert("No se pudo acceder a la cámara. Prueba a usar el navegador del sistema (Chrome/Safari) y HTTPS.");
+  }
 });
 
 captureBtn.addEventListener("click", async () => {
@@ -234,7 +271,10 @@ captureBtn.addEventListener("click", async () => {
     if (!res.docCanon) return setResult(false, "No se pudo extraer un DNI/NIE válido.");
     if (!res.nameCanon) return setResult(false, "No se reconoció el nombre.");
     compareAgainstBase(res.docCanon, res.nameCanon);
-  } catch (e) { setResult(false, "Error de OCR. Reintenta con mejor iluminación/encuadre."); }
+  } catch (e) {
+    console.error(e);
+    setResult(false, "Error de OCR. Reintenta con mejor iluminación/encuadre.");
+  }
 });
 
 imageInput.addEventListener("change", async (e) => {
@@ -246,16 +286,31 @@ imageInput.addEventListener("change", async (e) => {
     if (!res.docCanon) return setResult(false, "No se pudo extraer un DNI/NIE válido de la imagen.");
     if (!res.nameCanon) return setResult(false, "No se reconoció el nombre en la imagen.");
     compareAgainstBase(res.docCanon, res.nameCanon);
-  } catch { setResult(false, "Error de OCR con la imagen subida."); }
+  } catch (err) {
+    console.error(err);
+    setResult(false, "Error de OCR con la imagen subida.");
+  }
 });
 
 excelInput.addEventListener("change", async (e) => {
-  const f = e.target.files?.[0]; if (!f) return;
   baseStatus.textContent = "Cargando base...";
+  const f = e.target.files?.[0];
+  if (!f) { baseStatus.textContent = "Base no cargada."; return; }
   try {
-    const { count } = await loadExcel(f);
-    baseStatus.textContent = `Base cargada. Registros: ${count}`;
-  } catch { baseStatus.textContent = "Error al cargar el Excel (cabeceras: documento, nombre, apellido1, apellido2)."; }
+    const { rawCount, okCount } = await loadExcel(f);
+    if (!okCount) {
+      baseStatus.textContent = "No se cargaron registros válidos. Revisa cabeceras o formato.";
+    } else {
+      baseStatus.textContent = `Base cargada. Registros válidos: ${okCount} (leídos: ${rawCount}).`;
+    }
+  } catch (err) {
+    console.error(err);
+    if (!window.XLSX) {
+      baseStatus.textContent = "Error: librería XLSX no cargada. Revisa conexión o CDN.";
+    } else {
+      baseStatus.textContent = "Error al cargar el Excel. Revisa cabeceras: documento/nombre/apellido1/apellido2.";
+    }
+  }
 });
 
 manualCheckBtn.addEventListener("click", () => {
