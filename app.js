@@ -6,7 +6,9 @@ const MAX_REL_DISTANCE = 0.10;
 const normalize = (s) =>
   (s || "")
     .toUpperCase()
-    .normalize("NFD").replace(/\p{Diacritic}/gu, "")
+    .normalize("NFD")
+    // Quita diacríticos con rango Unicode general (compatible en más navegadores que \p{Diacritic})
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^A-Z0-9 ]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -49,9 +51,9 @@ function levenshtein(a, b) {
   for (let i = 1; i <= n; i++) {
     let prev = dp[0]; dp[0] = i;
     for (let j = 1; j <= m; j++) {
-      const temp = dp[j];
-      dp[j] = (a[i - 1] === b[j - 1]) ? prev : Math.min(prev + 1, dp[j] + 1, dp[j - 1] + 1);
-      prev = temp;
+      const tmp = dp[j];
+      dp[j] = (a[i-1] === b[j-1]) ? prev : Math.min(prev+1, dp[j]+1, dp[j-1]+1);
+      prev = tmp;
     }
   }
   return dp[m];
@@ -65,7 +67,6 @@ function similarEnough(a, b) {
   return { ok: dist <= threshold, dist, threshold };
 }
 
-// ===== MRZ (opcional para nombre) =====
 function parseMRZ(text) {
   const lines = (text || "").split(/\r?\n/).map(l => l.trim());
   const mrzLines = lines.filter(l => /^[A-Z0-9<]{25,}$/.test(l));
@@ -80,7 +81,6 @@ function parseMRZ(text) {
 // ===== Estado =====
 let baseByDoc = new Map();
 
-// Mapeo flexible de cabeceras
 function getCell(obj, keys) {
   const all = Object.keys(obj);
   for (const k of all) {
@@ -93,14 +93,12 @@ function getCell(obj, keys) {
   return "";
 }
 
-// Construye nombres (full / short)
 function makeNamesFromRow(r) {
   const full = normalize([r.nombre, r.apellido1, r.apellido2].filter(Boolean).join(" "));
   const short = normalize([r.nombre, r.apellido1].filter(Boolean).join(" "));
   return { full, short };
 }
 
-// Carga Excel con tolerancia de cabeceras
 async function loadExcel(file) {
   return new Promise((resolve, reject) => {
     if (!window.XLSX) return reject(new Error("Librería XLSX no cargada."));
@@ -118,11 +116,10 @@ async function loadExcel(file) {
 
         for (const r of rows) {
           rawCount++;
-          // Intenta leer cabeceras con nombres flexibles
-          const documento = getCell(r, ["documento", "doc", "dni", "nif", "nie"]);
-          const nombre    = getCell(r, ["nombre", "name"]);
-          const apellido1 = getCell(r, ["apellido1", "apellido 1", "ap1", "primer apellido"]);
-          const apellido2 = getCell(r, ["apellido2", "apellido 2", "ap2", "segundo apellido"]);
+          const documento = getCell(r, ["documento","doc","dni","nif","nie"]);
+          const nombre    = getCell(r, ["nombre","name"]);
+          const apellido1 = getCell(r, ["apellido1","apellido 1","ap1","primer apellido"]);
+          const apellido2 = getCell(r, ["apellido2","apellido 2","ap2","segundo apellido"]);
 
           const docCanon = canonDoc(documento);
           const tmp = { nombre, apellido1, apellido2 };
@@ -259,7 +256,7 @@ startCamBtn.addEventListener("click", async () => {
     video.srcObject = stream;
     captureBtn.disabled = false;
   } catch (e) {
-    alert("No se pudo acceder a la cámara. Prueba a usar el navegador del sistema (Chrome/Safari) y HTTPS.");
+    alert("No se pudo acceder a la cámara. Prueba Chrome (Android) o Safari (iOS), y asegúrate de permitir la cámara.");
   }
 });
 
