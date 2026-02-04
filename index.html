@@ -4,28 +4,18 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Verificador de Identidad</title>
-
-  <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="styles.css" />
   <meta name="theme-color" content="#2563eb" />
 
-  <!-- Tesseract: intenta local y, si no existe, usa CDN -->
-  <script src="libs/tesseract.min.js"></script>
-  <script>
-    if (!window.Tesseract) {
-      document.write('<script src="https://unpkg.com/tesseract.js@5.1.0/dist/tesseract.min.js"><\\/script>');
-    }
-  </script>
+  <!-- (Opcional) Hoja de estilos si la tienes en la raíz -->
+  <link rel="stylesheet" href="styles.css" />
 
-  <!-- XLSX: intenta local y, si no existe, usa CDN -->
-  <script src="libs/xlsx.full.min.js"></script>
-  <script>
-    if (!window.XLSX) {
-      document.write('<script src="https://cdn.jsdelivr.net/npm/xlsx@0.20.2/dist/xlsx.full.min.js"><\\/script>');
-    }
-  </script>
+  <!-- Librerías desde CDN (no uses /libs mientras no existan esos archivos en el repo) -->
+  <script src="https://unpkg.com/tesseract.js@5.1.0/dist/tesseract.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.20.2/dist/xlsx.full.min.js"></script>
+
+  <!-- Tu lógica; defer para ejecutar tras cargar HTML -->
+  <script defer src="app.js?v=9"></script>
 </head>
-
 <body>
   <header>
     <h1>Verificador de Identidad</h1>
@@ -79,13 +69,5 @@
   <footer>
     <small>Este sistema no verifica autenticidad del documento; únicamente compara texto OCR con la base cargada.</small>
   </footer>
-
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js').catch(()=>{});
-    }
-  </script>
-
-  <script src="app.js"></script>
 </body>
 </html>
