@@ -9,20 +9,23 @@
   <link rel="stylesheet" href="styles.css" />
   <meta name="theme-color" content="#2563eb" />
 
-  <!-- Librerías: primero intentar local (libs/), si no existen usar CDN -->
-  <script src="libs/tesseract.min.js"></script>
+  <!-- Tesseract: local si existe, si no CDN -->
+  libs/tesseract.min.js"></script>
   <script>
     if (!window.Tesseract) {
       document.write('<script src="https://unpkg.com/tesseract.js@5.1.0/dist/tesseract.min.js"><\\/script>');
     }
   </script>
-  <script src="libs/xlsx.full.min.js"></script>
+
+  <!-- XLSX: local si existe, si no CDN -->
+  libs/xlsx.full.min.js"></script>
   <script>
     if (!window.XLSX) {
       document.write('<script src="https://cdn.jsdelivr.net/npm/xlsx@0.20.2/dist/xlsx.full.min.js"><\\/script>');
     }
   </script>
 </head>
+
 <body>
   <header>
     <h1>Verificador de Identidad</h1>
@@ -82,6 +85,7 @@
       navigator.serviceWorker.register('sw.js').catch(()=>{});
     }
   </script>
-  <script src="app.js"></script>
+
+  app.js"></script>
 </body>
 </html>
